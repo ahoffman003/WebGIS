@@ -3,82 +3,123 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no" />
-  <title>Web Map Assignment</title>
+  <title>Accidental Deaths by State — Web Map</title>
 
-  <!-- ArcGIS Maps SDK for JavaScript (4.24 to match the template) -->
+  <!-- ArcGIS Maps SDK for JavaScript -->
   <link rel="stylesheet" href="https://js.arcgis.com/4.24/esri/themes/light/main.css" />
   <script src="https://js.arcgis.com/4.24/"></script>
 
   <style>
-    html, body, #viewDiv { height:100%; width:100%; margin:0; padding:0; }
+    /* ---- Layout basics ---- */
+    html, body, #viewDiv { height: 100%; width: 100%; margin: 0; padding: 0; }
 
-    /* Floating button stack (top-right) */
+    /* ---- Title bar ---- */
+    .titlebar {
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      max-width: min(720px, calc(100% - 24px));
+      background: rgba(255,255,255,0.95);
+      border: 1px solid #e6e6e6;
+      border-radius: 12px;
+      padding: 12px 16px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.06);
+      z-index: 20;
+    }
+    .titlebar h1 {
+      margin: 0 0 4px 0;
+      font: 700 18px/1.2 system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      letter-spacing: 0.2px;
+    }
+    .titlebar p {
+      margin: 0;
+      font: 400 13px/1.35 system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      color: #444;
+    }
+
+    /* ---- Custom control buttons ---- */
     .controls {
       position: absolute;
       top: 12px;
       right: 12px;
       display: grid;
       gap: 8px;
-      z-index: 10;
+      z-index: 20;
     }
     .btn {
-      background: white;
+      background: #ffffff;
       border: 1px solid #e0e0e0;
-      border-radius: 6px;
+      border-radius: 8px;
       padding: 8px 12px;
-      font: 600 14px/1.2 system-ui, Arial, sans-serif;
+      font: 600 13px/1 system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
       cursor: pointer;
       box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+      transition: box-shadow 120ms ease, transform 80ms ease;
     }
-    .btn:hover { box-shadow: 0 2px 6px rgba(0,0,0,0.12); }
+    .btn:hover { box-shadow: 0 3px 10px rgba(0,0,0,0.12); }
+    .btn:active { transform: translateY(1px); }
 
-    /* Logo link (bottom-left) */
-    .logo-link {
+    /* ---- Small link badge (optional image/link requirement) ---- */
+    .badge-link {
       position: absolute;
       left: 12px;
       bottom: 12px;
-      z-index: 10;
+      z-index: 15;
       display: inline-flex;
       align-items: center;
       gap: 8px;
-      background: rgba(255,255,255,0.9);
+      background: rgba(255,255,255,0.92);
       border: 1px solid #e0e0e0;
-      border-radius: 8px;
+      border-radius: 10px;
       padding: 6px 10px;
       text-decoration: none;
-      color: #1a1a1a;
+      color: #161616;
+      font: 500 12px/1 system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
     }
-    .logo-link img {
-      height: 22px; width: 22px; display: block;
-      border-radius: 4px;
+    .badge-link img {
+      height: 20px; width: 20px; display: block; border-radius: 4px;
     }
+
+    /* Make room for left/top UI so they don't stack on each other */
+    .esri-ui-top-left { margin-top: 84px; margin-left: 12px; }
   </style>
 </head>
 <body>
-  <div id="viewDiv"></div>
-
-  <!-- Floating custom controls -->
-  <div class="controls">
-    <button id="flyBtn" class="btn">Fly to Washington Co, MN</button>
+  <!-- Title bar (filled dynamically from the WebMap’s item) -->
+  <div class="titlebar">
+    <h1 id="mapTitle">Accidental Deaths by State</h1>
+    <p id="mapSubtitle">Interactive choropleth web map. Use the search, legend, and basemap tools to explore.</p>
   </div>
 
-  <!-- Image + link requirement -->
-  <a class="logo-link" href="https://www.esri.com/en-us/arcgis/products/arcgis-online/overview" target="_blank" rel="noopener">
-    <img src="https://developers.arcgis.com/assets/img/logo-outline-64.png" alt="Esri logo">
-    <span>Learn about ArcGIS Online</span>
+  <!-- Esri map container -->
+  <div id="viewDiv"></div>
+
+  <!-- Custom controls (right side) -->
+  <div class="controls">
+    <button id="resetBtn" class="btn" title="Reset to initial view">Reset View</button>
+  </div>
+
+  <!-- Optional: image + link (satisfies “image/link you added”) -->
+  <a class="badge-link" href="https://www.esri.com/en-us/arcgis/products/arcgis-online/overview" target="_blank" rel="noopener">
+    <img src="https://developers.arcgis.com/assets/img/logo-outline-64.png" alt="Esri">
+    ArcGIS Online Overview
   </a>
 
   <script>
     require([
+      "esri/config",
       "esri/WebMap",
       "esri/views/MapView",
       "esri/widgets/Search",
       "esri/widgets/BasemapToggle",
-      "esri/Graphic"
-    ], function (WebMap, MapView, Search, BasemapToggle, Graphic) {
+      "esri/widgets/Legend",
+      "esri/widgets/Expand"
+    ], function (esriConfig, WebMap, MapView, Search, BasemapToggle, Legend, Expand) {
 
-      // 1) Change this to YOUR public web map ID
-      // Example: one of your AGOL Web Maps set to 'Everyone (public)'
+      // Force the SDK to use the public ArcGIS Online portal (prevents org-login prompts)
+      esriConfig.portalUrl = "https://www.arcgis.com";
+
+      // Your chosen public WebMap: Accidental Deaths by State
       const WEBMAP_ID = "e691172598f04ea8881cd2a4adaa45ba";
 
       const webmap = new WebMap({ portalItem: { id: WEBMAP_ID } });
@@ -88,50 +129,53 @@
         map: webmap
       });
 
-      // 2) JS changes: Search & BasemapToggle widgets
+      // Keep track of the initial viewpoint so we can reset later
+      let initialViewpoint = null;
+
+      view.when(async () => {
+        // Save initial viewpoint for the Reset button
+        initialViewpoint = view.viewpoint.clone();
+
+        // Populate title/subtitle from the item if available
+        try {
+          await webmap.load();
+          const item = webmap.portalItem;
+          const titleEl = document.getElementById("mapTitle");
+          const subEl = document.getElementById("mapSubtitle");
+
+          if (item && item.title) titleEl.textContent = item.title;
+          // Prefer snippet if present; otherwise leave default subtitle text
+          if (item && item.snippet) subEl.textContent = item.snippet;
+        } catch (e) {
+          // If anything fails, just keep the defaults
+          console.warn("Could not load portal item metadata:", e);
+        }
+      });
+
+      // Widgets: Search
       const search = new Search({ view });
       view.ui.add(search, "top-left");
 
-      const toggle = new BasemapToggle({
-        view,
-        nextBasemap: "satellite"
-      });
+      // Widgets: Basemap toggle (to Satellite)
+      const toggle = new BasemapToggle({ view, nextBasemap: "satellite" });
       view.ui.add(toggle, "bottom-right");
 
-      // 3) JS changes: a button that flies to Washington County, MN (approx extent)
-      document.getElementById("flyBtn").addEventListener("click", () => {
-        // Washington County, MN extent (rough bbox in Web Mercator meters)
-        // Center near Stillwater, zoomed in.
-        view.goTo({
-          center: [-92.882, 45.02], // lon, lat in WGS84
-          zoom: 10
-        }, { duration: 1200 });
+      // Widgets: Legend (inside an Expand)
+      const legend = new Legend({ view });
+      const legendExpand = new Expand({
+        view,
+        content: legend,
+        expandIconClass: "esri-icon-layer-list",
+        expandTooltip: "Legend"
       });
+      view.ui.add(legendExpand, "top-left");
 
-      // 4) JS changes: click to drop a point + popup
-      view.on("click", (event) => {
-        const pointGraphic = new Graphic({
-          geometry: event.mapPoint,
-          symbol: {
-            type: "simple-marker",
-            size: 10,
-            outline: { color: "white" }
-          },
-          attributes: { x: event.mapPoint.longitude, y: event.mapPoint.latitude },
-          popupTemplate: {
-            title: "You clicked the map",
-            content: "Lon: {x}<br>Lat: {y}"
-          }
-        });
-        view.graphics.removeAll();
-        view.graphics.add(pointGraphic);
-        view.popup.open({ features: [pointGraphic], location: event.mapPoint });
+      // Custom control: Reset to initial viewpoint
+      document.getElementById("resetBtn").addEventListener("click", () => {
+        if (initialViewpoint) view.goTo(initialViewpoint, { duration: 1000 });
       });
 
     });
   </script>
 </body>
 </html>
-
-
-
