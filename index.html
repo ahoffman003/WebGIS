@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no" />
+  <title>Web Map Assignment</title>
+
+  <!-- ArcGIS Maps SDK for JavaScript (4.24 to match the template) -->
+  <link rel="stylesheet" href="https://js.arcgis.com/4.24/esri/themes/light/main.css" />
+  <script src="https://js.arcgis.com/4.24/"></script>
+
+  <style>
+    html, body, #viewDiv { height:100%; width:100%; margin:0; padding:0; }
+
+    /* Floating button stack (top-right) */
+    .controls {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      display: grid;
+      gap: 8px;
+      z-index: 10;
+    }
+    .btn {
+      background: white;
+      border: 1px solid #e0e0e0;
+      border-radius: 6px;
+      padding: 8px 12px;
+      font: 600 14px/1.2 system-ui, Arial, sans-serif;
+      cursor: pointer;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    }
+    .btn:hover { box-shadow: 0 2px 6px rgba(0,0,0,0.12); }
+
+    /* Logo link (bottom-left) */
+    .logo-link {
+      position: absolute;
+      left: 12px;
+      bottom: 12px;
+      z-index: 10;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(255,255,255,0.9);
+      border: 1px solid #e0e0e0;
+      border-radius: 8px;
+      padding: 6px 10px;
+      text-decoration: none;
+      color: #1a1a1a;
+    }
+    .logo-link img {
+      height: 22px; width: 22px; display: block;
+      border-radius: 4px;
+    }
+  </style>
+</head>
+<body>
+  <div id="viewDiv"></div>
+
+  <!-- Floating custom controls -->
+  <div class="controls">
+    <button id="flyBtn" class="btn">Fly to Washington Co, MN</button>
+  </div>
+
+  <!-- Image + link requirement -->
+  <a class="logo-link" href="https://www.esri.com/en-us/arcgis/products/arcgis-online/overview" target="_blank" rel="noopener">
+    <img src="https://developers.arcgis.com/assets/img/logo-outline-64.png" alt="Esri logo">
+    <span>Learn about ArcGIS Online</span>
+  </a>
+
+  <script>
+    require([
+      "esri/WebMap",
+      "esri/views/MapView",
+      "esri/widgets/Search",
+      "esri/widgets/BasemapToggle",
+      "esri/Graphic"
+    ], function (WebMap, MapView, Search, BasemapToggle, Graphic) {
+
+      // 1) Change this to YOUR public web map ID
+      // Example: one of your AGOL Web Maps set to 'Everyone (public)'
+      const WEBMAP_ID = "403ee6fc111d49549324cd040191dc86";
+
+      const webmap = new WebMap({ portalItem: { id: WEBMAP_ID } });
+
+      const view = new MapView({
+        container: "viewDiv",
+        map: webmap
+      });
+
+      // 2) JS changes: Search & BasemapToggle widgets
+      const search = new Search({ view });
+      view.ui.add(search, "top-left");
+
+      const toggle = new BasemapToggle({
+        view,
+        nextBasemap: "satellite"
+      });
+      view.ui.add(toggle, "bottom-right");
+
+      // 3) JS changes: a button that flies to Washington County, MN (approx extent)
+      document.getElementById("flyBtn").addEventListener("click", () => {
+        // Washington County, MN extent (rough bbox in Web Mercator meters)
+        // Center near Stillwater, zoomed in.
+        view.goTo({
+          center: [-92.882, 45.02], // lon, lat in WGS84
+          zoom: 10
+        }, { duration: 1200 });
+      });
+
+      // 4) JS changes: click to drop a point + popup
+      view.on("click", (event) => {
+        const pointGraphic = new Graphic({
+          geometry: event.mapPoint,
+          symbol: {
+            type: "simple-marker",
+            size: 10,
+            outline: { color: "white" }
+          },
+          attributes: { x: event.mapPoint.longitude, y: event.mapPoint.latitude },
+          popupTemplate: {
+            title: "You clicked the map",
+            content: "Lon: {x}<br>Lat: {y}"
+          }
+        });
+        view.graphics.removeAll();
+        view.graphics.add(pointGraphic);
+        view.popup.open({ features: [pointGraphic], location: event.mapPoint });
+      });
+
+    });
+  </script>
+</body>
+</html>
